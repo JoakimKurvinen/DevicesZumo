@@ -46,6 +46,13 @@
 #include <sys/time.h>
 int rread(void);
 
+void Beep(uint32, uint8);  //load Beep function
+void motor_start();
+void motor_forward(uint8,uint32);
+void motor_turn(uint8, uint8, uint32);
+void motor_backward(uint8,uint32);
+void motor_stop();
+
 /**
  * @file    main.c
  * @brief   
@@ -88,8 +95,30 @@ int main()
             
             // Print both ADC results and converted value
             printf("%d %f\r\n",adcresult, volts);
+            
+           /* if (volts < 4){
+               Beep(400, 200);  //call Beep function with 400 length, 200 pitch
+               CyDelay(5000);   //delay time
+           
+            }   */        
+            
         }
         CyDelay(500);
+        
+        
+        if(volts >= 4 ){
+             motor_start();
+             //motor_forward(-45,1000);            
+             //motor_turn(40, -40, 50);
+             //motor_backward(50,500);
+             //motor_turn(uint8 l_speed, uint8 r_speed, uint32 delay);
+             //motor_stop();
+             MotorDirLeft_Write(1);      // set LeftMotor forward mode
+             MotorDirRight_Write(0);     // set RightMotor forward mode
+             PWM_WriteCompare1(255); 
+             PWM_WriteCompare2(255); 
+             CyDelay(50);
+            }           
         
     }
  }   
