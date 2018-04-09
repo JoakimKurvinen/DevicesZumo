@@ -44,7 +44,9 @@
 #include "Beep.h"
 #include <time.h>
 #include <sys/time.h>
+#include "music.h"
 int rread(void);
+
 
 /**
  * @file    main.c
@@ -52,19 +54,21 @@ int rread(void);
  * @details  ** Enable global interrupt since Zumo library uses interrupts. **<br>&nbsp;&nbsp;&nbsp;CyGlobalIntEnable;<br>
 */
 
-#if 1
+#if 0
 //battery level//
+
 int main()
 {
     CyGlobalIntEnable; 
     UART_1_Start();
     Systick_Start();
     
-    ADC_Battery_Start();        
+    ADC_Battery_Start();  
 
     int16 adcresult =0;
     float volts = 0.0;
-
+    char notation[] = "2C4 1c4 1D4 1d4";
+    
     printf("\nBoot\n");
 
     //BatteryLed_Write(1); // Switch led on 
@@ -82,17 +86,25 @@ int main()
             adcresult = ADC_Battery_GetResult16(); // get the ADC value (0 - 4095)
             // convert value to Volts
             // you need to implement the conversion
-            volts = (float) adcresult / 4095 * 5;
-            volts = volts*1.5;
-                      
+            volts = (float) adcresult / 4095 * 5 * (3/2);
             
             // Print both ADC results and converted value
             printf("%d %f\r\n",adcresult, volts);
+            
+            //playmusic(notation, 300);
+            
+            
+            if(volts < 4){          //Battery Check
+                        Notes(30, 164.81);        
+                
+            }
+            
         }
         CyDelay(500);
-        
-    }
- }   
+    } 
+}
+  
+
 #endif
 
 #if 0
@@ -216,21 +228,68 @@ int main()
 #endif
 
 
-#if 0
+#if 1
 //motor//
 int main()
 {
     CyGlobalIntEnable; 
     UART_1_Start();
 
-    motor_start();              // motor start
-
-    motor_forward(100,2000);     // moving forward
-    motor_turn(200,50,2000);     // turn
-    motor_turn(50,200,2000);     // turn
-    motor_backward(100,2000);    // movinb backward
-       
-    motor_stop();               // motor stop
+    float motorDiff = -7;
+    float speed = 100;
+    float curveConst = -50;
+    
+    CyDelay(3700);
+    
+    Notes(300, 164.81);
+    Notes(600, 196.00);
+    
+    CyDelay(500);
+    
+    PWM_Start();
+    
+    //First Straight
+    MotorDirLeft_Write(0);      // set LeftMotor forward mode
+    MotorDirRight_Write(0);     // set RightMotor forward mode
+    
+    PWM_WriteCompare1(speed); //left
+    PWM_WriteCompare2(speed + motorDiff); //right
+    CyDelay(3600);
+    
+    //First Turn (Right)
+    PWM_WriteCompare1(speed);  //turning right
+    PWM_WriteCompare2(0);
+    CyDelay(1470);
+    
+    //Second Straight
+    PWM_WriteCompare1(speed); 
+    PWM_WriteCompare2(speed + motorDiff);
+    CyDelay(2900);
+    
+    //Second Turn
+    PWM_WriteCompare1(speed); 
+    PWM_WriteCompare2(0);
+    CyDelay(1570);
+    
+    //Third Straight
+    PWM_WriteCompare1(speed); 
+    PWM_WriteCompare2(speed + motorDiff);
+    CyDelay(3000);
+    
+    //Third Turn
+    PWM_WriteCompare1(speed); 
+    PWM_WriteCompare2(0);
+    CyDelay(1900);
+    
+    //Fourth Curve
+    PWM_WriteCompare1(speed); 
+    PWM_WriteCompare2(speed + motorDiff + curveConst);
+    CyDelay(5500);
+    
+    PWM_Stop();
+    
+    Notes(300, 196.00);
+    Notes(600, 164.81);
     
     for(;;)
     {
