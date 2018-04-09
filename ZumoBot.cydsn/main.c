@@ -54,7 +54,7 @@ int rread(void);
  * @details  ** Enable global interrupt since Zumo library uses interrupts. **<br>&nbsp;&nbsp;&nbsp;CyGlobalIntEnable;<br>
 */
 
-#if 0
+#if 1
 //battery level//
 
 int main()
@@ -63,11 +63,10 @@ int main()
     UART_1_Start();
     Systick_Start();
     
-    ADC_Battery_Start();  
+    ADC_Battery_Start(); //Start with Battery check 
 
     int16 adcresult =0;
     float volts = 0.0;
-    char notation[] = "2C4 1c4 1D4 1d4";
     
     printf("\nBoot\n");
 
@@ -77,11 +76,8 @@ int main()
     //button = SW1_Read(); // read SW1 on pSoC board
     // SW1_Read() returns zero when button is pressed
     // SW1_Read() returns one when button is not pressed
-
-    for(;;)
-    {
-        
-        ADC_Battery_StartConvert();
+    
+    ADC_Battery_StartConvert();
         if(ADC_Battery_IsEndConversion(ADC_Battery_WAIT_FOR_RESULT)) {   // wait for get ADC converted value
             adcresult = ADC_Battery_GetResult16(); // get the ADC value (0 - 4095)
             // convert value to Volts
@@ -93,13 +89,50 @@ int main()
             
             //playmusic(notation, 300);
             
-            
+            /*
             if(volts < 4){          //Battery Check
-                        Notes(30, 164.81);        
-                
+                        Notes(600, 164.81); 
+                        Notes(300, 196.00);
+                        Notes(600, 164.81); 
+                        Notes(300, 196.00);
+                        Notes(600, 164.81);
             }
-            
+            */
         }
+ 
+    for(;;) 
+    {
+        struct sensors_ ref;
+
+        Systick_Start();
+        reflectance_start();
+        
+        // read raw sensor values
+        reflectance_read(&ref);
+        printf("L2 %5d L1 %5d R1 %5d R2 %5d\r\n", ref.l2, ref.l1, ref.r1, ref.r2);       // print out each period of reflectance sensors
+        
+        float leftSlow = 0;
+        float rightSlow = 0;
+        float L2 = 0;
+        float L1 = 0;
+        float R1 = 0;
+        float R2 = 0;
+        
+        L1 = (ref.l1 / 5000);
+        L2 = (ref.l2 / 5000);
+        R1 = (ref.r1 / 5000);
+        R2 = (ref.r2 / 5000);
+        
+        
+        leftSlow = L1 + L2;
+        rightSlow = R1 + R2;
+        
+        
+        
+        
+        printf("LS %.5f RS %.5f\n", leftSlow, rightSlow);
+        printf("L2 %.5f L1 %.5f R1 %.5f R2 %.5f\n", L2, L1, R1, R2);
+        
         CyDelay(500);
     } 
 }
@@ -228,9 +261,9 @@ int main()
 #endif
 
 
-#if 1
+#if 0
 //motor//
-int main()
+int main() //TEST TRACK
 {
     CyGlobalIntEnable; 
     UART_1_Start();
