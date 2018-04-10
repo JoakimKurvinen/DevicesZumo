@@ -46,7 +46,7 @@
 #include <sys/time.h>
 #include "music.h"
 int rread(void);
-
+float conv(float);
 /**
  * @file    main.c
  * @brief   
@@ -55,12 +55,27 @@ int rread(void);
 
 #if 1
 //battery level//
+    
+float conv(float input){
+    float output = (input - 3500) / (24500 - 3500);
+    return output;
+}
+
+float perCheck(float input) {
+    if (input > 100){
+        return 100;
+    }
+    else{ 
+    return input;
+    }
+}
 
 int main()
 {
     CyGlobalIntEnable; 
     UART_1_Start();
     Systick_Start();
+    
     
     ADC_Battery_Start(); //Start with Battery check 
 
@@ -97,17 +112,24 @@ int main()
                         Notes(300, 196.00);
                         Notes(600, 164.81);
             }
-            */
-
-           /* if (volts < 4){
-               Beep(400, 200);  //call Beep function with 400 length, 200 pitch
-               CyDelay(5000);   //delay time
-           
-            }   */        
+            */      
             
 
         }
- 
+    
+        
+    CyDelay(3000);
+    /*playNote(200, 196.00);
+    playNote(200, 164.81);*/
+    
+        PWM_Start();
+    
+        //First Straight
+        MotorDirLeft_Write(0);      // set LeftMotor forward mode
+        MotorDirRight_Write(0);     // set RightMotor forward mode
+    
+    
+    
     for(;;) 
     {
         struct sensors_ ref;
@@ -118,31 +140,45 @@ int main()
 
         // read raw sensor values
         reflectance_read(&ref);
-        printf("L2 %5d L1 %5d R1 %5d R2 %5d\r\n", ref.l2, ref.l1, ref.r1, ref.r2);       // print out each period of reflectance sensors
+        //printf("L2 %5d L1 %5d R1 %5d R2 %5d\r\n", ref.l2, ref.l1, ref.r1, ref.r2);       // print out each period of reflectance sensors
         
-        float leftSlow = 0;
+        float speed = 180;
+        float leftSlow = 0; //will be in percentages  
         float rightSlow = 0;
-        float L2 = 0;
-        float L1 = 0;
-        float R1 = 0;
+        float L2 = 1;           
+        float L1 = 1;
+        float R1 = 1;
         float R2 = 0;
+        float R3 = 0;
+        float L3 = 0;
         
-        L1 = (ref.l1 / 5000);
-        L2 = (ref.l2 / 5000);
-        R1 = (ref.r1 / 5000);
-        R2 = (ref.r2 / 5000);
+        L1 = ref.l1;  //practical sensor data ranges from 3500 to 24500 
+        R1 = ref.r1;  //Output values will be 0 to 1 
         
+        L2 = ref.l2;
+        R2 = ref.r2;
         
-        leftSlow = L1 + L2;
-        rightSlow = R1 + R2;
+        L3 = ref.l3;
+        R3 = ref.r3;
         
+        leftSlow = (conv(L1)*12 + conv(L2)*60 + conv(L3)*90);
+        rightSlow = (conv(R1)*12 + conv(R2)*60 + conv(R3)*90);
         
+        playNote(300, 196.00);
         
+        leftSlow = perCheck(leftSlow);
+        rightSlow = perCheck(rightSlow);
         
         printf("LS %.5f RS %.5f\n", leftSlow, rightSlow);
         printf("L2 %.5f L1 %.5f R1 %.5f R2 %.5f\n", L2, L1, R1, R2);
         
-        CyDelay(500);
+        PWM_WriteCompare1(speed * (1 - (leftSlow/100))); //left
+        PWM_WriteCompare2(speed * (1 - (rightSlow/100))); //right
+    
+        float temp = ref.l2 - 3500;
+        
+        printf("%f\n",temp);
+        
     } 
 }   
 
@@ -189,6 +225,7 @@ int main()
 //ultrasonic sensor//
 int main()
 {
+    /*
     CyGlobalIntEnable; 
     UART_1_Start();
     Systick_Start();
@@ -197,8 +234,27 @@ int main()
         int d = Ultra_GetDistance();
         //If you want to print out the value  
         printf("distance = %d\r\n", d);
-        CyDelay(200);
+        CyDelay(200);    
     }
+    */
+    CyGlobalIntEnable; 
+    UART_1_Start();
+    Systick_Start();
+    
+    printf("testtest\n");
+    
+    for(;;){
+        float tempArray[50];
+        char musicSheet[] = "C4, D4, E4, F4, G4, A4, B4, C5";
+        playSong(musicSheet, tempArray);
+        printf("%f, %f, %f, testtestTESTTEST\n", tempArray[0],tempArray[1],tempArray[2]);
+        playNote(300, 196.00);
+        playNote(300, tempArray[0]);
+        setTempo(300, tempArray);
+        
+    CyDelay(2000);
+    }
+    printf("TestTwo");
 }   
 #endif
 

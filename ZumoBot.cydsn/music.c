@@ -35,9 +35,10 @@ void Beep(uint32, uint8);          //load beep function
 int tempo = 300;
 int delay = 0;
 
-/*
-float * playSong (char musicInput[]){
-    float musicOutput[50];
+//playSong > setTempo
+
+void playSong (char musicInput[], float musicOutput[]){
+    
     int semiT;
     char mi;
     char temp[4];
@@ -54,14 +55,24 @@ float * playSong (char musicInput[]){
         musicOutput[j] = 440 * (2^(1/12))^semiT;
         j++;
     }
-    return musicOutput;
 }
-*/
+
+void setTempo(int tempo, float outputMusic[]){
+    int i = 0;
+    char oM = outputMusic[0];
+    while (oM != "\0"){
+        playNote(tempo, outputMusic[i]);
+        i++;
+        oM = outputMusic[i];
+    }
+}
+
+
 int getNote (char input[]){     //gets input such as E4, and returns
-    char nt;                    //amount of semitones away from A4
+    char nt = input[0];                    //amount of semitones away from A4
     int i = 0;
     int result = 0;
-    while (nt != '\n')
+    while (nt != '\0')
     {
         nt = input[i];
         switch(nt){
@@ -132,7 +143,7 @@ int getNote (char input[]){     //gets input such as E4, and returns
 }
 
 
-void Notes(uint32 length, float HzNote)
+void playNote(uint32 length, float HzNote)
 {            
     uint16 pitch = 200000 / HzNote;
     uint16 cmp = pitch / 2;
@@ -146,28 +157,28 @@ void Notes(uint32 length, float HzNote)
 void E3 (uint32 length)         //E3 = 164.81
 {
     length = length*tempo - delay;
-    Notes(length, 164.81);
+    playNote(length, 164.81);
     CyDelay(delay);
 }
 
 void D3 (uint32 length)         //D3 = 146.83
 {
     length = length*tempo - delay;
-    Notes(length, 146.83);
+    playNote(length, 146.83);
     CyDelay(delay);
 }
 
 void C3 (uint32 length)         //C3 = 130.81
 {
     length = length*tempo - delay;
-    Notes(length, 130.81);
+    playNote(length, 130.81);
     CyDelay(delay);
 }
 
 void G3 (uint32 length)         //G3 = 196.00
 {
     length = length*tempo - delay;
-    Notes(length, 196.00);
+    playNote(length, 196.00);
     CyDelay(delay);
 }
 

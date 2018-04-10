@@ -10,16 +10,11 @@
  * ========================================
 */
 #include <stdbool.h>
+#include "project.h"
 
-void Notes(uint32, float);
-
+void playSong();
+void setTempo(int, float[]);
 int getNote (char[]);
-
-struct Note
-{
-    int frequency;
-    int duration;
-};
-
+void playNote(uint32, float);
 
 /* [] END OF FILE */
