@@ -45,8 +45,10 @@
 #include <time.h>
 #include <sys/time.h>
 #include "music.h"
+#include <stdbool.h>
 int rread(void);
 float conv(float);
+//float revCheck(float);
 /**
  * @file    main.c
  * @brief   
@@ -61,12 +63,24 @@ float conv(float input){
     return output;
 }
 
-float perCheck(float input) {
-    if (input > 100){
-        return 100;
+float revCheck(float input, bool isLeft){        
+    if(input <= 100){
+        if(isLeft == true){
+            MotorDirLeft_Write(0);
+        }
+        else{
+            MotorDirRight_Write(0);
+        }
+        return input;
     }
-    else{ 
-    return input;
+    else{
+        if(isLeft == true){
+            MotorDirLeft_Write(1);
+        }
+        else{
+            MotorDirRight_Write(1);
+        }
+        return ((input - 100));
     }
 }
 
@@ -122,12 +136,7 @@ int main()
     /*playNote(200, 196.00);
     playNote(200, 164.81);*/
     
-        PWM_Start();
-    
-        //First Straight
-        MotorDirLeft_Write(0);      // set LeftMotor forward mode
-        MotorDirRight_Write(0);     // set RightMotor forward mode
-    
+    PWM_Start();
     
     
     for(;;) 
@@ -142,8 +151,8 @@ int main()
         reflectance_read(&ref);
         //printf("L2 %5d L1 %5d R1 %5d R2 %5d\r\n", ref.l2, ref.l1, ref.r1, ref.r2);       // print out each period of reflectance sensors
         
-        float speed = 180;
-        float leftSlow = 0; //will be in percentages  
+        float speed = 270;
+        float leftSlow = 0;  
         float rightSlow = 0;
         float L2 = 1;           
         float L1 = 1;
@@ -151,9 +160,10 @@ int main()
         float R2 = 0;
         float R3 = 0;
         float L3 = 0;
+        int timer = 0;
         
         L1 = ref.l1;  //practical sensor data ranges from 3500 to 24500 
-        R1 = ref.r1;  //Output values will be 0 to 1 
+        R1 = ref.r1;  
         
         L2 = ref.l2;
         R2 = ref.r2;
@@ -161,25 +171,31 @@ int main()
         L3 = ref.l3;
         R3 = ref.r3;
         
-        leftSlow = (conv(L1)*12 + conv(L2)*60 + conv(L3)*90);
-        rightSlow = (conv(R1)*12 + conv(R2)*60 + conv(R3)*90);
+        leftSlow = (conv(L1)*15 + conv(L2)*50 + conv(L3)*100); //Output values will be 0 to 1 after conv() method
+        rightSlow = (conv(R1)*15 + conv(R2)*50 + conv(R3)*100);
         
-        playNote(300, 196.00);
-        
-        leftSlow = perCheck(leftSlow);
-        rightSlow = perCheck(rightSlow);
-        
-        printf("LS %.5f RS %.5f\n", leftSlow, rightSlow);
-        printf("L2 %.5f L1 %.5f R1 %.5f R2 %.5f\n", L2, L1, R1, R2);
-        
-        PWM_WriteCompare1(speed * (1 - (leftSlow/100))); //left
-        PWM_WriteCompare2(speed * (1 - (rightSlow/100))); //right
-    
-        float temp = ref.l2 - 3500;
-        
-        printf("%f\n",temp);
-        
-    } 
+        if(conv(R3) > 0.7 && conv(L3) > 0.7){
+            PWM_WriteCompare1(0); //left
+            PWM_WriteCompare2(0); //right
+            timer = timer/100;
+            playNote(300, 196.00);
+            playNote(300, 164.81);
+            int j = 0;
+            
+            for(int i=0; i<timer; i++){
+                float k = (float) pow(1.059463094359, j);
+                playNote(300, 130.81 * k);
+                j++;
+                j = j % 12;
+            }
+            timer = 0;
+        }
+        else{
+            PWM_WriteCompare1(speed * (1 - (revCheck(leftSlow,true)/100))); //left
+            PWM_WriteCompare2(speed * (1 - (revCheck(rightSlow,false)/100))); //right
+            timer++;
+        }    
+    }
 }   
 
 #endif
