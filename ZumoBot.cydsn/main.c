@@ -85,29 +85,17 @@ float revCheck(float input, bool isLeft){   //turns >100% slowdown into reverse 
     }
 }
 
-float speedCheck(float input){ //returns input with cap at 255
-    if(input > 255){
-        return 255;   
-    }
-    else{
-    return input;   
-    }
-}
-
 int main()
 {
     CyGlobalIntEnable; 
     UART_1_Start();
-    Systick_Start();
-    
     ADC_Battery_Start(); //Start with Battery check 
 
     int16 adcresult =0;
     float volts = 0.0;
     
     printf("\nBoot\n");
-
-    //BatteryLed_Write(1); // Switch led on 
+ 
     BatteryLed_Write(0); // Switch led off 
     
     ADC_Battery_StartConvert();
@@ -115,7 +103,6 @@ int main()
             adcresult = ADC_Battery_GetResult16(); // get the ADC value (0 - 4095)
             // convert value to Volts
             volts = (float) adcresult / 4095 * 5 * (3/2);
-            
             // Print both ADC results and converted value
             printf("%d %f\r\n",adcresult, volts);
             /*
@@ -126,98 +113,94 @@ int main()
             }
             */
         }
-    
     //Battery check ends here, BEGIN LINE COMMANDS   
-    PWM_Start();
-    bool running = true;
-    int lineCounter = 1;
-    int timer = 0;
+    
+    struct sensors_ ref;
+    reflectance_start();
+    reflectance_read(&ref);
+        
+    bool running = false;
+    int lineCounter = 0;
+    uint8 timer = 0;
     float speed = 255;
     bool turningLeft = true;
+    
+    float leftSlow = 0, rightSlow = 0;
+    float leftMult = 0, rightMult = 0; //used only for 2nd method
+    float L3=0, L2=0, L1=0, R1=0, R2=0, R3=0; 
+
+    //Get to start line
+    L3 = conv(ref.l3); //outputs values 0-1
+    R3 = conv(ref.r3);
+    
+    CyDelay(2000);
+    PWM_Start();
+    
+    while(!(R3 > 0.7 && L3 > 0.7)){       //check if outer sensors are over 0.7 threshold (dark)
+        BatteryLed_Write(1);
+        
+        struct sensors_ ref;
+        reflectance_start();
+        reflectance_read(&ref);
+        
+        L3 = conv(ref.l3);
+        R3 = conv(ref.r3);
+        
+        PWM_WriteCompare1(110 - (L3 * 50)); //left
+        PWM_WriteCompare2(110 - (R3 * 50)); //right
+    }
+ 
+    PWM_Stop();
     Systick_Start();
+    BatteryLed_Write(0);
+    
     for(;;) 
     {  
         if(SW1_Read() == 0){ //start running when button is pressed
             running = true;
             PWM_Start();
-            PWM_WriteCompare1(255); //left
-            MotorDirLeft_Write(0);
-            PWM_WriteCompare2(255); //right
-            MotorDirRight_Write(0);
-            CyDelay(250);
         }
-        while(running == true){
-                
+        while(running){
+            
             struct sensors_ ref;
             reflectance_start();
-            reflectance_read(&ref);
+            reflectance_read(&ref);   
             
-            float leftSlow = 0, rightSlow = 0;
-            float leftMult = 0, rightMult = 0; //used only for 2nd method
-            float L3=0, L2=0, L1=0, R1=0, R2=0, R3=0;   
+            L1 = conv(ref.l1);  //practical sensor data ranges from 3500 to 24500 
+            R1 = conv(ref.r1);  
             
-            L1 = ref.l1;  //practical sensor data ranges from 3500 to 24500 
-            R1 = ref.r1;  
+            L2 = conv(ref.l2);
+            R2 = conv(ref.r2);
             
-            L2 = ref.l2;
-            R2 = ref.r2;
+            L3 = conv(ref.l3);
+            R3 = conv(ref.r3);
             
-            L3 = ref.l3;
-            R3 = ref.r3;
+            int firstSens = 30;
+            int secondSens = 75;
+            int thirdSens = 110;
             
-            //1st Method
-            leftSlow = (conv(L1)*25 + conv(L2)*60 + conv(L3)*120); //Output values will be 0 to 1 after conv() method
-            rightSlow = (conv(R1)*25 + conv(R2)*60 + conv(R3)*120);//spd 320
-                
-            //1st sensor, 25%, 60%, 130%, spd 310       13.38
-            //1st sensor, 15%, 2nd, 50%, 3rd 100% speed 290     14.00
-            /*
-            //2nd method
-            leftSlow = (conv(L1)*25 + conv(L2)*60 + conv(L3)*120); //Output values will be 0 to 1 after conv() method
-            rightSlow = (conv(R1)*25 + conv(R2)*60 + conv(R3)*120);
+            leftSlow = (L1*firstSens + L2*secondSens + L3*thirdSens); //Output values will be 0 to 1 after conv() method
+            rightSlow = (R1*firstSens + R2*secondSens + R3*thirdSens);
             
-            if(leftSlow > rightSlow){               //outputs range 0-1 where one motor will always be at one and 
-                leftMult = (1 - (revCheck(rightSlow,false)/100)) / (1 - (revCheck(leftSlow,true)/100));    //other will be proportionally smaller
-                rightMult = 1;
-            }
-            else{
-                rightMult = (1 - (revCheck(leftSlow,true)/100)) / (1 - (revCheck(rightSlow,false)/100));
-                leftMult = 1;
-            }
-            
-            printf("L3 %f L2 %f L1 %f R1 %f R2 %f R3 %f\n", conv(L3), conv(L2), conv(L1), conv(R1), conv(R2), conv(R3));
-            printf("%f, %f\n", leftMult, rightMult);
-            */
-            if(conv(R3) > 0.7 && conv(L3) > 0.7){ //L3,R3 sensors are black: full stop
+            //L3,R3 sensors are black: FULL STOP
+            if(R3 > 0.7 && L3 > 0.7){ 
                 lineCounter++;
-                if(lineCounter % 2 == 0){
-                    running = false; 
-                    PWM_WriteCompare1(0); //left
-                    PWM_WriteCompare2(0); //right
-                    PWM_Stop();
-                }
-                /*timer = timer/100;
-                int j = 0;
                 
-                for(int i=0; i<timer; i++){
-                    float k = (float) pow(1.059463094359, j);
-                    playNote(300, 164.81 * k);
-                    j++;
-                    j = j % 12;
-                }
-                timer = 0;
-                CyDelay(3000);
-                playNote(300, 196.00);
-                playNote(300, 164.81); 
-                CyDelay(10000);*/
+                running = false; 
+                PWM_WriteCompare1(0); //left
+                PWM_WriteCompare2(0); //right
+                PWM_Stop();
+                
+                timer = GetTicks();
+                printf("time: %d\n", timer);
             }
-            //all sensors white - robot is off track and is lost. turn towards 
-            else if(conv(L3)<0.3 && conv(L2)<0.3 && conv(L1)<0.3 && conv(R1)<0.3 && conv(R2)<0.3 && conv(R3)<0.3){
+            //All sensors white - robot is off track and is lost: TURN TOWARDS LAST KNOWN DIRECTION
+            else if(L3<0.3 && L2<0.3 && L1<0.3 && R1<0.3 && R2<0.3 && R3<0.3){
                 if(turningLeft){
                     MotorDirLeft_Write(0);
                     MotorDirRight_Write(1);
                     
-                    PWM_WriteCompare1(speed); //left    //NEED SPEEDCHECKS HERE IF USING METHOD 1
+                    PWM_WriteCompare1(0); //left    
                     PWM_WriteCompare2(speed); //right    
                 }
                 else{
@@ -225,21 +208,16 @@ int main()
                     MotorDirRight_Write(0);
                     
                     PWM_WriteCompare1(speed); //left
-                    PWM_WriteCompare2(speed); //right   
+                    PWM_WriteCompare2(0); //right   
                 }
             }
-            else{                       //not at start/end or lost, follow line                               
-                //method1
-                //PWM_WriteCompare1(speedCheck(speed * (1 - (revCheck(leftSlow,true)/100)))); //left
-                //PWM_WriteCompare2(speedCheck(speed * (1 - (revCheck(rightSlow,false)/100)))); //right
+            //Not at start/end or lost: FOLLOW LINE
+            else{                                      
+                leftMult = (1 - (revCheck(leftSlow,true)/100));     //turn percent slowdown into percent speed
+                rightMult = (1 - (revCheck(rightSlow,false)/100));  //e.g. 15% slower => 85% of speed
                 
-                //method2
-                
-                leftMult = (1 - (revCheck(leftSlow,true)/100)); //check if *speed is needed
-                rightMult = (1 - (revCheck(rightSlow,false)/100));
-                
-                if(leftMult > rightMult){              
-                    rightMult = rightMult / leftMult;
+                if(leftMult > rightMult){               //check which value is larger,
+                    rightMult = rightMult / leftMult;   //set larger value to 1 and scale smaller one down
                     leftMult = 1;
                 }
                 else{
@@ -250,9 +228,9 @@ int main()
                 PWM_WriteCompare1((speed * leftMult)); //left
                 PWM_WriteCompare2((speed * rightMult)); //right
                 
-                //check if robot is currently turning left or right incase it gets off track (for next cycle)
-                //will only remember left/rightness when robot is on track
-                if(leftSlow > rightSlow){       
+                //check if robot is currently turning left or right incase it gets off track (for next loop)
+                //will only remember left/rightness when robot is on track!
+                if(rightMult > leftMult){       
                     turningLeft = true;
                 }
                 else{
