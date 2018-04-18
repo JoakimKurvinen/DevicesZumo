@@ -65,7 +65,7 @@ float conv(float input){                            //converts raw sensor input 
 }
 
 float revCheck(float input, bool isLeft){   //turns >100% slowdown into reverse motor and appropriate slowdown        
-    if(input <= 100){                       // input 115 returns 15 and backwards on correct motor
+    if(input <= 100){                       //e.g. input 115 returns 15 and backwards method on correct motor
         if(isLeft == true){
             MotorDirLeft_Write(0);
         }
@@ -154,13 +154,18 @@ int main()
     Systick_Start();
     BatteryLed_Write(0);
     
+    IR_Start();
+    playNote(500, 168.81);
+    
+    IR_wait(); // wait for IR command
+    playNote(500, 196.00);
+        
+    PWM_Start();
+    
     for(;;) 
     {  
-        if(SW1_Read() == 0){ //start running when button is pressed
-            running = true;
-            PWM_Start();
-        }
-        while(running){
+        
+        while(true){
             
             struct sensors_ ref;
             reflectance_start();
@@ -175,70 +180,85 @@ int main()
             L3 = conv(ref.l3);
             R3 = conv(ref.r3);
             
-            int firstSens = 30;
-            int secondSens = 75;
-            int thirdSens = 110;
+            int firstSens = 20;
+            int secondSens = 50;
+            int thirdSens = 90;
             
             leftSlow = (L1*firstSens + L2*secondSens + L3*thirdSens); //Output values will be 0 to 1 after conv() method
             rightSlow = (R1*firstSens + R2*secondSens + R3*thirdSens);
             
-            //L3,R3 sensors are black: FULL STOP
-            if(R3 > 0.7 && L3 > 0.7){ 
-                lineCounter++;
+            if(lineCounter == 1 || lineCounter == 3){
+                //L3,R3 sensors are black: FULL STOP
+                if(R3 > 0.7 && L3 > 0.7){ 
+                    if(lineCounter == 3){
+                        //running = false; 
+                        PWM_WriteCompare1(0); //left
+                        PWM_WriteCompare2(0); //right
+                        PWM_Stop();
+                        timer = GetTicks();
+                        printf("time: %d\n", timer);
+                    }
+                    if(lineCounter == 1){
+                        lineCounter = 2;
+                    }
+                    else{
+                        lineCounter++;
+                    }
+                }
                 
-                running = false; 
-                PWM_WriteCompare1(0); //left
-                PWM_WriteCompare2(0); //right
-                PWM_Stop();
-                
-                timer = GetTicks();
-                printf("time: %d\n", timer);
-            }
-            //All sensors white - robot is off track and is lost: TURN TOWARDS LAST KNOWN DIRECTION
-            else if(L3<0.3 && L2<0.3 && L1<0.3 && R1<0.3 && R2<0.3 && R3<0.3){
-                if(turningLeft){
-                    MotorDirLeft_Write(0);
-                    MotorDirRight_Write(1);
+                //All sensors white - robot is off track and is lost: TURN TOWARDS LAST KNOWN DIRECTION
+                else if(L3<0.3 && L2<0.3 && L1<0.3 && R1<0.3 && R2<0.3 && R3<0.3){
+                    if(turningLeft){
+                        MotorDirLeft_Write(0);
+                        MotorDirRight_Write(1);
+                        
+                        PWM_WriteCompare1(0); //left    
+                        PWM_WriteCompare2(speed); //right    
+                    }
+                    else{
+                        MotorDirLeft_Write(1);
+                        MotorDirRight_Write(0);
+                        
+                        PWM_WriteCompare1(speed); //left
+                        PWM_WriteCompare2(0); //right   
+                    }
+                }
+                //Not at start/end or lost: FOLLOW LINE
+                else{   
+                    follow:
+                    leftMult = (1 - (revCheck(leftSlow,true)/100));     //turn percent slowdown into percent speed
+                    rightMult = (1 - (revCheck(rightSlow,false)/100));  //e.g. 15% slower => 85% of speed
                     
-                    PWM_WriteCompare1(0); //left    
-                    PWM_WriteCompare2(speed); //right    
-                }
-                else{
-                    MotorDirLeft_Write(1);
-                    MotorDirRight_Write(0);
+                    if(leftMult > rightMult){               //check which value is larger,
+                        rightMult = rightMult / leftMult;   //set larger value to 1 and scale smaller one down
+                        leftMult = 1;
+                    }
+                    else{
+                        leftMult = leftMult / rightMult;
+                        rightMult = 1;
+                    }
+      
+                    PWM_WriteCompare1((speed * leftMult)); //left
+                    PWM_WriteCompare2((speed * rightMult)); //right
                     
-                    PWM_WriteCompare1(speed); //left
-                    PWM_WriteCompare2(0); //right   
+                    //check if robot is currently turning left or right incase it gets off track (for next loop)
+                    //will only remember left/rightness when robot is on track!
+                    if(rightMult > leftMult){       
+                        turningLeft = true;
+                    }
+                    else{
+                        turningLeft = false;
+                    }
                 }
             }
-            //Not at start/end or lost: FOLLOW LINE
-            else{                                      
-                leftMult = (1 - (revCheck(leftSlow,true)/100));     //turn percent slowdown into percent speed
-                rightMult = (1 - (revCheck(rightSlow,false)/100));  //e.g. 15% slower => 85% of speed
+            else{           //linecoutner is 0
+                PWM_WriteCompare1(255); //left
+                PWM_WriteCompare2(255);
                 
-                if(leftMult > rightMult){               //check which value is larger,
-                    rightMult = rightMult / leftMult;   //set larger value to 1 and scale smaller one down
-                    leftMult = 1;
-                }
-                else{
-                    leftMult = leftMult / rightMult;
-                    rightMult = 1;
-                }
-  
-                PWM_WriteCompare1((speed * leftMult)); //left
-                PWM_WriteCompare2((speed * rightMult)); //right
-                
-                //check if robot is currently turning left or right incase it gets off track (for next loop)
-                //will only remember left/rightness when robot is on track!
-                if(rightMult > leftMult){       
-                    turningLeft = true;
-                }
-                else{
-                    turningLeft = false;
+                if(R3 < 0.7 && L3 < 0.7){
+                    lineCounter++;   
                 }
             }
-            
-            
         }    
     }
 }   
