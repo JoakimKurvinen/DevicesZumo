@@ -119,7 +119,6 @@ int main()
     reflectance_start();
     reflectance_read(&ref);
         
-    bool running = false;
     int lineCounter = 0;
     uint8 timer = 0;
     float speed = 255;
@@ -133,7 +132,7 @@ int main()
     L3 = conv(ref.l3); //outputs values 0-1
     R3 = conv(ref.r3);
     
-    CyDelay(2000);
+    CyDelay(1000);
     PWM_Start();
     
     while(!(R3 > 0.7 && L3 > 0.7)){       //check if outer sensors are over 0.7 threshold (dark)
@@ -153,10 +152,8 @@ int main()
     PWM_Stop();
     Systick_Start();
     BatteryLed_Write(0);
-    
     IR_Start();
-    playNote(500, 168.81);
-    
+        
     IR_wait(); // wait for IR command
     playNote(500, 196.00);
         
@@ -180,29 +177,26 @@ int main()
             L3 = conv(ref.l3);
             R3 = conv(ref.r3);
             
-            int firstSens = 20;
+            int firstSens = 25;
             int secondSens = 50;
-            int thirdSens = 90;
+            int thirdSens = 100;
             
             leftSlow = (L1*firstSens + L2*secondSens + L3*thirdSens); //Output values will be 0 to 1 after conv() method
             rightSlow = (R1*firstSens + R2*secondSens + R3*thirdSens);
             
             if(lineCounter == 1 || lineCounter == 3){
-                //L3,R3 sensors are black: FULL STOP
-                if(R3 > 0.7 && L3 > 0.7){ 
-                    if(lineCounter == 3){
+                //L2,R2 sensors are black: FULL STOP
+                if(R2 > 0.7 && L2 > 0.7){ 
+                    if(lineCounter == 1){
+                        lineCounter++;
+                    }
+                    else if(lineCounter == 3){
                         //running = false; 
                         PWM_WriteCompare1(0); //left
                         PWM_WriteCompare2(0); //right
                         PWM_Stop();
                         timer = GetTicks();
                         printf("time: %d\n", timer);
-                    }
-                    if(lineCounter == 1){
-                        lineCounter = 2;
-                    }
-                    else{
-                        lineCounter++;
                     }
                 }
                 
@@ -243,7 +237,7 @@ int main()
                     
                     //check if robot is currently turning left or right incase it gets off track (for next loop)
                     //will only remember left/rightness when robot is on track!
-                    if(rightMult > leftMult){       
+                    if(rightMult < leftMult){       
                         turningLeft = true;
                     }
                     else{
@@ -251,7 +245,7 @@ int main()
                     }
                 }
             }
-            else{           //linecoutner is 0
+            else{           //linecoutner is 0,2
                 PWM_WriteCompare1(255); //left
                 PWM_WriteCompare2(255);
                 
