@@ -14,7 +14,7 @@
 
 void playSong();
 void setTempo(int, float[]);
-int getNote (char[]);
+int getNote(char[]);
 void playNote(uint32, float);
 
 /* [] END OF FILE */

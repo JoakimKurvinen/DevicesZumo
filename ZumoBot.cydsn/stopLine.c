@@ -32,7 +32,7 @@ int rread(void);
    bool isOnFirstLine = false; 
     bool isOnStopLine = false;
     bool hasPassedFirstLine = false;
-    
+    /*
     while(isOnStopLine == false){   
         
         //check if robot is on stop line
@@ -54,4 +54,4 @@ int rread(void);
                     }
         }
         
-    }
+    }*/
