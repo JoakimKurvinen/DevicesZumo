@@ -56,7 +56,7 @@ float revCheck(float,bool);
  * @details  ** Enable global interrupt since Zumo library uses interrupts. **<br>&nbsp;&nbsp;&nbsp;CyGlobalIntEnable;<br>
 */
 
-#if 0
+#if 1
 //battery level//
     
 float conv(float input){                            //converts raw sensor input to range 0-1
@@ -152,7 +152,7 @@ int main()
         
         L3 = conv(ref.l3);
         R3 = conv(ref.r3);
-        //84349
+        
         PWM_WriteCompare1(90 - (L3 * 80)); //left
         PWM_WriteCompare2(90 - (R3 * 80)); //right
     }
@@ -187,25 +187,7 @@ int main()
         leftSlow = (L1*firstSens + L2*secondSens + L3*thirdSens);
         rightSlow = (R1*firstSens + R2*secondSens + R3*thirdSens);
         
-        
-        
-        
         if(onBlack == false){       //driving code
-            /*
-            //L2,R2 sensors are black: FULL STOP
-            if(R3 > 0.5 && L3 > 0.5 && R2 > 0.7 && L2 > 0.7 && R1 > 0.5 && L1 > 0.5){ 
-                if(lineCounter == 1){
-                    lineCounter++;
-                }
-                else if(lineCounter == 3){
-                    //running = false; 
-                    PWM_WriteCompare1(0); //left
-                    PWM_WriteCompare2(0); //right
-                    PWM_Stop();
-                    //timer = GetTicks();
-                }
-            }
-            */
             //All sensors white - robot is off track and is lost: TURN TOWARDS LAST KNOWN DIRECTION
             if(L3<0.3 && L2<0.3 && L1<0.3 && R1<0.3 && R2<0.3 && R3<0.3){
                 if(turningLeft){
@@ -321,8 +303,14 @@ int main()
 #endif
 
 
-#if 1
+#if 0       //SUMO
 //ultrasonic sensor//
+struct sensors_ ref;
+void startReflectanceAndSetThreshold();
+void moveToEntryPoint();
+void passEntryLine(uint speed);
+void detectEnemy();
+
     
 int scanCap (float input, int threshold){        //capping input at threshold
     if (input > threshold){
@@ -337,7 +325,9 @@ float speedCheck(float speed, bool isleftMotor){
             MotorDirLeft_Write(1);    
         }
         else MotorDirRight_Write(1);
-        return -speed;
+        
+        if (speed < -255) return -255;
+        else return -speed;
     }
     else{                                   //pos speed
         if(isleftMotor){
@@ -345,10 +335,46 @@ float speedCheck(float speed, bool isleftMotor){
         }
         else MotorDirRight_Write(0);
         
-        return speed;    
+        if(speed > 255) return 255;
+        else return speed;    
     }
 }
+
+int scanCheck(int input, bool turnLeft, bool isLeftMotor){  //changes sign if turn direction != corresponding motor
+    int buffer;
+    buffer = input;
     
+    if (!turnLeft) buffer = -buffer;
+    
+    if (!isLeftMotor) buffer = -buffer;
+    
+    return buffer;
+}
+
+void startReflectanceAndSetThreshold(){    
+    reflectance_start();    
+    reflectance_set_threshold(16000, 16000, 16000, 16000, 16000, 16000); // set center sensor threshold to 11000 and others to 9000
+    reflectance_digital(&ref);
+}
+
+void moveToEntryPoint(){
+    while(!(ref.l3 == 1 && ref.r3 == 1)){
+        motor_forward(100,100);
+        reflectance_digital(&ref);
+    }
+    motor_forward(0,0);
+}
+
+void passEntryLine(uint speed ){
+    motor_forward(speed,100);
+    reflectance_digital(&ref);
+     while(ref.l3 == 1 && ref.r3 ==1 ){                     // pass entry line         
+        motor_forward(speed,400);    
+        reflectance_digital(&ref);            
+     }
+    //motor_forward(speed, 350);
+}
+/*
 void speedScale(float left, float right){
     if(left > right){               
                     right = right / left;   // scale smaller one down and set larger value to 1
@@ -359,7 +385,7 @@ void speedScale(float left, float right){
         right = 1;
     }
 }
-
+*/
 int main()
 {
     
@@ -368,48 +394,117 @@ int main()
     Systick_Start();
     Ultra_Start();                          // Ultra Sonic Start function
     int d = Ultra_GetDistance();            // let threshhold be 30
-    bool scanning = true;
-    bool turnLeft = true;
-    bool isLeftMotor = true;
+    bool attackMode = false;
+    bool turnLeft = true; //robot starts by turning left so this value is initially set to true
+    
     PWM_Start();
     
-    float scanMod = 0;      //input from 0-2, oscilating func, >1 for left, <1 for right
-    float oscMod = 0;
-    float moveMod = 0;
+    float fullSpeed = 255;
+    float delayTime = 400;
     
-    
-    float scanSpeed = 120;
-    float maxSpeed = 255;
     int threshold = 30; //scan threshold
+    //int minThreshold = 5; //sensor value when right up against it, value when robot goes to ramming speed
     int counter = 0;
+    float moveSpeed = 120;
+    
+    float oscSpeed = 180;
+    float oscFq = 1800;  //sin(pi / oscFq)
+    
+    float scanSpeed = 200;
+    
+    float scanMod = 0; //values from 0 to 1, value is at 1 when lower than threshold-1, 0 otherwise 
+    float oscMod = 0;  //values from (-1) to 1, oscilating func, >0 for left, <0 for right
+    float moveMod = 1; //makes code more understandable
     
     float leftSpeed = 0;
     float rightSpeed = 0;
     
+      
+    motor_start();  
+    reflectance_start();
+    IR_Start();  
+    Ultra_Start();
+    
+    
+    startReflectanceAndSetThreshold();
+    
+    //moveToEntryPoint();
+     while(!(ref.l2 == 1 && ref.r2 == 1)){
+        motor_forward(100,100);
+        reflectance_digital(&ref);
+    }
+    motor_forward(0,0);
+    
+    //wait for remore control to enter sumo ring
+    IR_flush();
+    IR_wait();
+    
+    
+    //pass entry line and enter sumo ring
+      
+    passEntryLine(255);
+    reflectance_digital(&ref); 
+    
+    
     for(;;){
+        reflectance_digital(&ref); 
         
-        d = scanCap(Ultra_GetDistance(), threshold);    //threshold is 30
-        
-        scanMod = - d/threshold;
-        
-        oscMod = sin(counter * M_PI / 1500)+1;
-        
-        counter++;
-        if(counter % 128 == 0) turnLeft = !turnLeft;
-        
-        
-        PWM_WriteCompare1(speedCheck(leftSpeed, true)); //left    
-        PWM_WriteCompare2(speedCheck(rightSpeed, false)); //right 
-        
-        
-        
-        /*
-        float f = sinf(counter*M_PI/16);
-        printf("%e\n",f);
-        counter++;
-        printf("coutner: %d\n", counter);
-        CyDelay(199);
-        */
+        if(ref.l3 == 0  && ref.r3 == 0){      //no black, scan   
+            if(attackMode != 1){
+                d = scanCap(Ultra_GetDistance(), threshold); 
+                moveMod = 1;
+                if(d <= 5){         //robot is within ramming range, FULL SPEED AHEAD!
+                    attackMode = true;
+                    PWM_WriteCompare1(speedCheck(255, true));
+                    PWM_WriteCompare2(speedCheck(255, false));
+                }
+                
+                else{               //scanning for robots, no ramming
+                    
+                    if(d < threshold-1){ 
+                        scanMod = 1;        //threshold -1
+                        moveMod = 5;
+                    }
+                    else scanMod = 0;
+                    
+                    oscMod = sin((M_PI /2) +(counter * M_PI / oscFq));
+                    
+                    counter++;
+                    if(counter % 128 == 0) turnLeft = !turnLeft;        //change bool of turnLeft every oscilation period (when it changes osc direction)
+                    
+                    leftSpeed = (moveSpeed * moveMod) + (oscSpeed * oscMod) + (scanSpeed * scanCheck(scanMod, turnLeft, true));
+                    rightSpeed = (moveSpeed * moveMod) + (oscSpeed * -oscMod) + (scanSpeed * scanCheck(scanMod, turnLeft, false));
+                    
+                    PWM_WriteCompare1(speedCheck(leftSpeed, true)); //left    
+                    PWM_WriteCompare2(speedCheck(rightSpeed, false)); //right 
+                }
+            }
+            else{
+                PWM_WriteCompare1(speedCheck(255, true));
+                PWM_WriteCompare2(speedCheck(255, false));
+            }
+        }
+        else { //sees black
+            attackMode = 0;
+            if( ref.l3 == 1){           //l3 on black, retreat first so it will not be out of the ring and turn 
+                
+                motor_backward(fullSpeed,100);            
+                motor_turn(0,fullSpeed,delayTime);   
+                
+            }else  if(ref.r3 == 1){         //r3 on black, retreat first so it will not be out of the ring and turn  
+                
+                motor_backward(fullSpeed,100); 
+                motor_turn(fullSpeed,0,delayTime); 
+                
+            }else if( ref.l3 == 1 && ref.r3 == 1){ //both outer sensors on black, 
+               BatteryLed_Write(1); // Switch led off 
+               MotorDirLeft_Write(0);                   
+               MotorDirRight_Write(1);  
+               PWM_WriteCompare1(fullSpeed); 
+               PWM_WriteCompare2(fullSpeed);  
+               CyDelay(delayTime);
+            }
+        }
     }
 }   
 #endif
