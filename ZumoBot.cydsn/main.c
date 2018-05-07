@@ -56,7 +56,7 @@ float revCheck(float,bool);
  * @details  ** Enable global interrupt since Zumo library uses interrupts. **<br>&nbsp;&nbsp;&nbsp;CyGlobalIntEnable;<br>
 */
 
-#if 1
+#if 0
 //battery level//
     
 float conv(float input){                            //converts raw sensor input to range 0-1
@@ -130,7 +130,7 @@ int main()
     bool turningLeft = true;
     bool onBlack = true;    //after getting to initial starting point, robot starts on black
     
-    float leftSlow = 0, rightSlow = 0;
+    float leftSlow = 0, rightSlow = 0; //slow down speed 
     float leftMult = 0, rightMult = 0; //used only for 2nd method
     float L3=0, L2=0, L1=0, R1=0, R2=0, R3=0; 
 
@@ -162,6 +162,7 @@ int main()
     BatteryLed_Write(0);
     IR_Start();
     //playNote(500, 196.00);
+    
     IR_wait(); // wait for IR command
     PWM_Start();
     
@@ -244,14 +245,14 @@ int main()
         if(onBlack){
             if(R3 < 0.3 && L3 < 0.3){   //passing from black to white    
                 onBlack = false;
-                BatteryLed_Write(1);
+                //BatteryLed_Write(1);
             }
         }
         else{
             if(R3 > 0.7 && L3 > 0.7){   //passing from white to black
                 lineCounter++;
                 onBlack = true;
-                BatteryLed_Write(0);
+                //BatteryLed_Write(0);
             }
         }  
         
@@ -259,8 +260,8 @@ int main()
         if(lineCounter == 2){
             PWM_Stop();
         } 
-        sumTotal += leftMult;
-        sumTotal += rightMult;
+        //sumTotal += leftMult;
+        //sumTotal += rightMult;
     }
 }   
 
@@ -303,7 +304,7 @@ int main()
 #endif
 
 
-#if 0       //SUMO
+#if 1       //SUMO
 //ultrasonic sensor//
 struct sensors_ ref;
 void startReflectanceAndSetThreshold();
@@ -372,7 +373,7 @@ void passEntryLine(uint speed ){
         motor_forward(speed,400);    
         reflectance_digital(&ref);            
      }
-    //motor_forward(speed, 350);
+    
 }
 /*
 void speedScale(float left, float right){
@@ -425,10 +426,10 @@ int main()
     IR_Start();  
     Ultra_Start();
     
-    
+    //start reflectance sensors and set threshold 
     startReflectanceAndSetThreshold();
     
-    //moveToEntryPoint();
+    //move forward to entry point
      while(!(ref.l2 == 1 && ref.r2 == 1)){
         motor_forward(100,100);
         reflectance_digital(&ref);
@@ -440,12 +441,11 @@ int main()
     IR_wait();
     
     
-    //pass entry line and enter sumo ring
-      
+    //pass entry line and enter sumo ring      
     passEntryLine(255);
     reflectance_digital(&ref); 
     
-    
+    //somo wrestling code
     for(;;){
         reflectance_digital(&ref); 
         
@@ -470,7 +470,7 @@ int main()
                     oscMod = sin((M_PI /2) +(counter * M_PI / oscFq));
                     
                     counter++;
-                    if(counter % 128 == 0) turnLeft = !turnLeft;        //change bool of turnLeft every oscilation period (when it changes osc direction)
+                    if(counter % (int)oscFq == 0) turnLeft = !turnLeft;        //change bool of turnLeft every oscilation period (when it changes osc direction)
                     
                     leftSpeed = (moveSpeed * moveMod) + (oscSpeed * oscMod) + (scanSpeed * scanCheck(scanMod, turnLeft, true));
                     rightSpeed = (moveSpeed * moveMod) + (oscSpeed * -oscMod) + (scanSpeed * scanCheck(scanMod, turnLeft, false));
