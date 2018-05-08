@@ -56,7 +56,7 @@ float revCheck(float,bool);
  * @details  ** Enable global interrupt since Zumo library uses interrupts. **<br>&nbsp;&nbsp;&nbsp;CyGlobalIntEnable;<br>
 */
 
-#if 0
+#if 1
 //battery level//
     
 float conv(float input){                            //converts raw sensor input to range 0-1
@@ -267,6 +267,198 @@ int main()
 
 #endif
 
+
+//alternative method (Strategy 2)
+#if 0
+struct sensors_ ref;
+struct sensors_ dig;
+
+
+void startSensorsAndSetSensorThresholds();
+void reachStartLineAndWait();
+void passStartLine(uint8 speed);
+int calculateProcessVariable();
+
+
+int main()
+{
+    CyGlobalIntEnable; 
+    UART_1_Start();
+    Systick_Start();
+    IR_Start();     
+    ADC_Battery_Start();
+    
+   
+    const float fullSpeed = 255;
+    const int setPoint = 25;
+    float errorBefore = 0;
+    int previousPV = 0, count = 0;
+    const float Kp = 25; // proportional constant, which helps calculate the proportional part, defined by trial and error
+    //Kp =  25(12.6s) 25.5 (13.1s) 20(13.4s) constant and result
+        
+    const float Kd = 100; //kd = 2.5 (13s) 0.5(13.2) 5.5(13.1)  10.5 50.5(13.2)defined by trial and error, defined after Kp has been finetuned,
+    float rightMotorSpeed;
+    float leftMotorSpeed;       
+        
+    bool isOnFirstLine = false; 
+    bool isOnStopLine = false;
+    bool hasPassedFirstLine = false;
+    
+    
+    //start motors and sensors, and set thresholds
+    startSensorsAndSetSensorThresholds();  
+  
+    
+    //start robot until it reaches the start line    
+       while(!(ref.l3 == 1 && ref.r3 == 1)){  
+            motor_forward(100,10);             
+            reflectance_digital(&ref);
+            CyDelay(10);
+        }        
+    motor_forward(0,0);    
+    
+    
+    //wait for IR signal to enter track    
+    IR_flush();    
+    IR_wait();
+    
+    
+    //Pass the start line
+    passStartLine(fullSpeed); 
+    
+    //Code for Line Following
+    while(isOnStopLine == false){   
+        
+        //check if robot is on stop line
+        reflectance_digital(&ref);     
+        if(ref.l3 == 1 && ref.r3 == 1){  //is robot on black line?     
+            
+                    if(isOnFirstLine == false && hasPassedFirstLine == false){  // is robot on the first black line for the first time?
+                        isOnFirstLine = true;     
+                    }else if( isOnFirstLine == true && hasPassedFirstLine == false){
+                        //robot is still on the first black line, do nothing
+                    }else if(hasPassedFirstLine == true){ // robot is on the stop line
+                        isOnStopLine = true;
+                    }
+            
+        }else{ // robot not on black line 
+                    if(isOnFirstLine == true){   //robot has passed the first line
+                        hasPassedFirstLine = true;
+                        isOnFirstLine = false;
+                    }
+        }
+           
+        //calculate process variable
+        int processVariable = calculateProcessVariable();
+        
+        if (processVariable == -1) {
+            processVariable = previousPV;   //no black line, use value where black line was last seen by sensors
+        }else{
+            previousPV = processVariable;
+        }
+        
+       
+        int error = setPoint - processVariable; 
+        //error range : [-25, 25], if error is negative, turn right, if 0, go forward, if positive, turn left    
+                
+        
+        //calculate controller output:
+        //the output is the difference in speed between the two motors
+        //slowDownSpeed =  proportionalPart + derivativePart; 
+        //if error is negative, turn right, left motor goes faster than the right one
+        //if error is positive, turn left, right motor goes faster than the left one
+        //if error is 0, both motors go at same speed
+        
+        
+        float proportionalPart = Kp * error;         
+        
+        float derivativePart = (errorBefore - error) * Kd ;       
+        
+        float slowDownSpeed = proportionalPart + derivativePart;     
+        
+        
+        if(slowDownSpeed == 0){
+            rightMotorSpeed = fullSpeed;
+            leftMotorSpeed = fullSpeed;
+        }else if(slowDownSpeed > 0){
+            rightMotorSpeed = fullSpeed;
+            leftMotorSpeed = fullSpeed - slowDownSpeed;
+        }else if(slowDownSpeed < 0){
+            leftMotorSpeed = fullSpeed;
+            rightMotorSpeed = fullSpeed + slowDownSpeed;//slow down speed is in negative
+        }               
+        
+        //adjust motors' speed to center robot on black line based on error signal
+        motor_turn(leftMotorSpeed,rightMotorSpeed,0);
+        errorBefore = error;       
+    }
+    
+    motor_stop();
+        
+ }
+
+
+int calculateProcessVariable(){
+    reflectance_digital(&ref);
+    
+    int pv = 0;
+    
+    if(ref.l3 == 1){
+        pv = pv + 10  * 0;
+    }
+    
+    if(ref.l2 == 1){
+        pv = pv + 10 * 1;
+    }
+    
+    if(ref.l1 == 1){
+        pv = pv + 10 * 2;
+    }
+    
+    if(ref.r1 == 1){
+         pv = pv + 10 * 3;
+    }
+    
+    if(ref.r2 == 1){
+         pv = pv + 10 * 4;
+    }
+    
+    
+    if(ref.r3 == 1){
+         pv = pv + 10 * 5;
+    }
+    
+   
+    
+    int vSum = ref.l1 + ref.l2 + ref.l3 + ref.r1 + ref.r2 + ref.r3;
+    
+    if (vSum == 0){
+        pv = -1;        //if vSum = 0, pv not defined, it may crash the system             
+    }else{           
+        pv = pv/vSum;     
+    } 
+        return pv;
+}
+
+void startSensorsAndSetSensorThresholds(){ 
+    motor_start(); 
+    reflectance_start();    
+    reflectance_set_threshold(9000, 10000, 11000, 11000, 10000, 9000); // set center sensor threshold to 11000 and others to 9000
+    reflectance_digital(&ref);
+}
+
+
+void passStartLine(uint8 speed){     
+    motor_forward(speed, 0);   
+    reflectance_digital(&ref);
+    while(ref.l3 == 1 && ref.r3 == 1){   //keep looping until robot has passed the start line      
+    reflectance_digital(&ref);
+    }
+}
+
+#endif
+    
+
 #if 0
 // button
 int main()
@@ -304,7 +496,7 @@ int main()
 #endif
 
 
-#if 1       //SUMO
+#if 0       //SUMO
 //ultrasonic sensor//
 struct sensors_ ref;
 void startReflectanceAndSetThreshold();
