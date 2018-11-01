@@ -1,6 +1,6 @@
 # PSoC Creator project for Metropolia PSoC-Zumo adapter
 
-1st year project for racing a robot along a track & robot sumo wrestling.
+1st year project for racing a robot along a track & robot sumo wrestling written in C.
 
 This project contains work involving controling the Zumo robot using 2 motors. The input included 6 infrared sensors on the bottom of the robot, as well as 1 ultrasonic sensor used for the purposes for the sumo wrestling. 
 
